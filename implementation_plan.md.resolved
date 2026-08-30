@@ -1,0 +1,430 @@
+# Active Verification — MVP Implementation Plan
+
+**Goal:** Build a working, end-to-end Minimum Viable Pipeline that takes a suspicious email, scores it, investigates the sender domain, runs a sandboxed honeypot simulation, and displays all evidence on a dashboard.
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph LR
+    subgraph "Frontend"
+        D["Streamlit Dashboard<br/>(port 8501)"]
+    end
+    subgraph "Backend (FastAPI, port 8000)"
+        A["POST /detect"]
+        B["POST /investigate"]
+        C["POST /unmask"]
+        E["GET /pipeline/{id}"]
+    end
+    subgraph "Database"
+        F["PostgreSQL<br/>(port 5432)"]
+    end
+
+    D -->|HTTP calls| A
+    D -->|HTTP calls| B
+    D -->|HTTP calls| C
+    D -->|HTTP calls| E
+    A --> F
+    B --> F
+    C --> F
+```
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Frontend Choice: Streamlit over React.** Since the MVP goal is speed-to-working and your team is Python-focused, I recommend **Streamlit** for the dashboard. It requires zero JavaScript/HTML knowledge, can call FastAPI endpoints via `httpx`, and gets a functional UI in hours rather than days. The trade-off is limited customization — but for a capstone demo, it's ideal. React can be swapped in later if needed. **Do you agree?**
+
+> [!IMPORTANT]
+> **Model Choice: DistilBERT instead of DeBERTa-v3-base for MVP.** DeBERTa-v3-base is excellent but heavy (~440MB, slow on CPU). For the MVP to run on any laptop without a GPU, I recommend starting with **DistilBERT** (~260MB, 2× faster inference). We can upgrade to DeBERTa later once the pipeline works. The training code is identical — just swap the model name. **Your preference?**
+
+> [!WARNING]
+> **LLM for Investigation Agent.** The Investigate module needs an LLM to reason about WHOIS/DNS evidence. Options:
+> 1. **OpenAI API** (GPT-4o-mini) — easiest, costs ~$0.15/1M tokens, requires API key
+> 2. **Google Gemini API** (gemini-1.5-flash) — free tier available, requires API key
+> 3. **Ollama (local)** — fully free, requires ~4GB RAM for a 7B model, no API key
+>
+> I recommend **Option 2 (Gemini Flash)** for the MVP since it's free and you've used Google APIs before. We'll make it configurable so any provider works. **Which do you prefer?**
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Do you already have Docker Desktop installed on Windows?** The Docker Compose setup requires it.
+> 2. **Do you have a Kaggle account?** Needed to download the phishing email dataset.
+> 3. **Python version?** Please confirm you have Python 3.10+ installed (`python --version`).
+> 4. **GPU availability?** Do you have access to a CUDA GPU locally, or should training be designed for CPU/Google Colab?
+
+---
+
+## Proposed Changes
+
+### Step 1: Project Scaffolding
+
+#### Folder Structure
+
+```
+capstone/
+├── backend/
+│   ├── main.py                  # FastAPI app entry point
+│   ├── config.py                # Settings (DB URL, API keys, etc.)
+│   ├── database.py              # SQLAlchemy engine + session
+│   ├── models.py                # ORM models (emails, verdicts, evidence)
+│   ├── requirements.txt         # Python dependencies
+│   │
+│   ├── detection/               # Module 1: Email phishing classifier
+│   │   ├── __init__.py
+│   │   ├── router.py            # POST /detect endpoint
+│   │   ├── classifier.py        # Transformer inference logic
+│   │   ├── preprocess.py        # Dataset download + cleaning
+│   │   └── train.py             # Fine-tuning script (run separately)
+│   │
+│   ├── investigation/           # Module 2: Domain investigation agent
+│   │   ├── __init__.py
+│   │   ├── router.py            # POST /investigate endpoint
+│   │   ├── agent.py             # LLM reasoning agent
+│   │   └── tools.py             # WHOIS + DNS lookup functions
+│   │
+│   ├── unmask/                  # Module 3: Sandboxed honeypot simulation
+│   │   ├── __init__.py
+│   │   ├── router.py            # POST /unmask endpoint
+│   │   ├── fake_sender.py       # Synthetic "suspicious sender" simulator
+│   │   ├── honeypot_agent.py    # Honeypot agent that replies + analyzes
+│   │   └── analyzer.py          # Latency, coherence, personalization scoring
+│   │
+│   ├── shared/                  # Shared utilities
+│   │   ├── __init__.py
+│   │   └── schemas.py           # Pydantic request/response models
+│   │
+│   └── tests/                   # Unit tests for all modules
+│       ├── test_detection.py
+│       ├── test_investigation.py
+│       └── test_unmask.py
+│
+├── dashboard/
+│   └── app.py                   # Streamlit single-page dashboard
+│
+├── docker-compose.yml           # Backend + PostgreSQL + Dashboard
+├── Dockerfile.backend           # Backend container
+├── Dockerfile.dashboard         # Dashboard container
+├── .env.example                 # Template for environment variables
+├── README.md                    # How to run the system
+└── data/                        # Downloaded datasets (gitignored)
+    └── .gitkeep
+```
+
+**Why this structure:**
+- Each module is self-contained with its own `router.py` (FastAPI endpoints) and business logic
+- `shared/schemas.py` centralizes Pydantic models so all modules speak the same data format
+- `tests/` is flat for simplicity; one test file per module
+- `data/` is gitignored — datasets are large and should be downloaded locally
+
+---
+
+#### [NEW] docker-compose.yml
+
+Defines three services:
+- **db**: PostgreSQL 16 with a named volume for persistence
+- **backend**: FastAPI app built from `Dockerfile.backend`, depends on `db`
+- **dashboard**: Streamlit app built from `Dockerfile.dashboard`, depends on `backend`
+
+---
+
+#### [NEW] Dockerfile.backend
+
+- Based on `python:3.11-slim`
+- Installs system deps (gcc for psycopg2)
+- Copies `requirements.txt`, runs `pip install`
+- Copies backend code, exposes port 8000
+- CMD: `uvicorn main:app --host 0.0.0.0 --port 8000`
+
+---
+
+#### [NEW] Dockerfile.dashboard
+
+- Based on `python:3.11-slim`
+- Installs `streamlit`, `httpx`, `pandas`
+- Copies dashboard code, exposes port 8501
+- CMD: `streamlit run app.py --server.address 0.0.0.0`
+
+---
+
+#### [NEW] backend/main.py
+
+- Creates FastAPI app with CORS middleware
+- Includes routers from `detection`, `investigation`, `unmask`
+- Adds a health check endpoint `GET /health`
+- On startup, runs `database.create_tables()`
+
+---
+
+#### [NEW] backend/database.py
+
+- Uses SQLAlchemy 2.0 async-style with `create_engine`
+- Reads `DATABASE_URL` from environment (default: `postgresql://...`)
+- Provides `SessionLocal` factory and `get_db` dependency for FastAPI
+
+---
+
+#### [NEW] backend/models.py
+
+Database tables:
+- **`emails`**: `id`, `subject`, `body`, `sender`, `created_at`
+- **`verdicts`**: `id`, `email_id` (FK), `detection_score`, `investigation_verdict`, `investigation_evidence`, `unmask_verdict`, `unmask_transcript`, `final_verdict`, `created_at`
+
+---
+
+#### [NEW] backend/config.py
+
+- Uses `pydantic-settings` to load from `.env`
+- Keys: `DATABASE_URL`, `LLM_API_KEY`, `LLM_PROVIDER` (openai/gemini/ollama), `MODEL_PATH`
+
+---
+
+### Step 2: Detect Module
+
+#### Dataset
+
+**Choice: [Phishing Email Dataset on Kaggle](https://www.kaggle.com/datasets/naserabdullahalam/phishing-email-dataset)** (~82,500 emails, pre-labeled, CSV format combining Nazario + Enron + CEAS + Nigerian Fraud + SpamAssassin)
+
+**Why:** Largest freely available combined corpus, already in CSV, well-documented, widely cited.
+
+**Download instructions** will be provided as a script in `detection/preprocess.py` with step-by-step comments.
+
+---
+
+#### [NEW] backend/detection/preprocess.py
+
+1. Downloads dataset from Kaggle (requires `kaggle` CLI or manual download)
+2. Loads CSV, drops nulls, deduplicates
+3. Maps labels to binary: `1 = phishing`, `0 = legitimate`
+4. Splits into train/val/test (80/10/10)
+5. Saves cleaned splits to `data/train.csv`, `data/val.csv`, `data/test.csv`
+
+---
+
+#### [NEW] backend/detection/train.py
+
+1. Loads preprocessed splits
+2. Tokenizes using `AutoTokenizer.from_pretrained("distilbert-base-uncased")`
+3. Fine-tunes `AutoModelForSequenceClassification` with HuggingFace `Trainer`
+4. Training args: 3 epochs, batch_size=16, lr=2e-5, eval each epoch
+5. Saves model to `data/phishing-model/`
+6. Prints evaluation metrics (accuracy, F1, precision, recall)
+
+> [!NOTE]
+> This script runs **separately** from the FastAPI server (e.g., on Google Colab or locally). The saved model is then loaded by the classifier at server startup.
+
+---
+
+#### [NEW] backend/detection/classifier.py
+
+- Loads the fine-tuned model from `data/phishing-model/` at module import time
+- Exposes `predict(email_text: str) -> float` that returns a suspicion score (0.0–1.0)
+- Uses `torch.no_grad()` for efficient inference
+
+---
+
+#### [NEW] backend/detection/router.py
+
+- `POST /detect` — accepts `{"subject": "...", "body": "...", "sender": "..."}`
+- Calls `classifier.predict(subject + " " + body)`
+- Saves the email + score to the database
+- Returns `{"email_id": ..., "suspicion_score": 0.87}`
+
+---
+
+### Step 3: Investigate Module
+
+#### Libraries
+
+| Library | Purpose |
+|---------|---------|
+| `python-whois` | WHOIS lookups (registration date, registrar, country) |
+| `dnspython` | DNS record queries (MX, SPF, DKIM, A records) |
+| `google-genai` or `openai` | LLM for reasoning (configurable) |
+
+---
+
+#### [NEW] backend/investigation/tools.py
+
+Two functions:
+- `lookup_whois(domain: str) -> dict` — returns registration date, registrar, expiry, country, age in days
+- `lookup_dns(domain: str) -> dict` — returns MX records, A records, SPF record (TXT), whether DKIM exists
+
+Both wrapped in try/except with graceful fallbacks (some domains block WHOIS).
+
+---
+
+#### [NEW] backend/investigation/agent.py
+
+- Takes an email + its detection score
+- Extracts sender domain from the email address
+- Calls `lookup_whois()` and `lookup_dns()`
+- Constructs a structured prompt for the LLM:
+  ```
+  You are a cybersecurity analyst. Given these WHOIS and DNS findings
+  for the sender domain, assess whether this email is likely phishing.
+  Provide: verdict (LIKELY_PHISHING / SUSPICIOUS / LIKELY_LEGITIMATE),
+  confidence (0-100), and reasoning (2-3 sentences).
+  ```
+- Returns the LLM's structured response
+
+---
+
+#### [NEW] backend/investigation/router.py
+
+- `POST /investigate` — accepts `{"email_id": ..., "sender_domain": "..."}`
+- Calls `agent.investigate()`
+- Updates the verdict record in the database
+- Returns `{"verdict": "LIKELY_PHISHING", "confidence": 85, "reasoning": "...", "evidence": {...}}`
+
+---
+
+### Step 4: Unmask Module (Sandboxed Simulation)
+
+> [!CAUTION]
+> **SANDBOXED ONLY.** This module simulates a conversation between a honeypot agent and a **fake** attacker persona. NO real external email addresses, domains, or live malicious infrastructure is ever contacted. Every comment in the code will reinforce this constraint.
+
+---
+
+#### [NEW] backend/unmask/fake_sender.py
+
+A **scripted simulator** that plays the role of a "suspicious sender":
+- Has a configurable persona (name, claimed organization, urgency level)
+- Responds to honeypot messages using **templates with randomized delays**
+- Can optionally use a local LLM for more dynamic responses
+- Tracks conversation state (greeting → pitch → urgency → threat)
+- All interactions are logged with timestamps
+
+**Why scripted first:** Deterministic behavior makes testing reliable. LLM-driven fake sender is a "next feature."
+
+---
+
+#### [NEW] backend/unmask/honeypot_agent.py
+
+The honeypot agent that "engages" the fake sender:
+- Generates curious/interested replies designed to extract information
+- Logs each exchange with timing data
+- After N rounds (default: 3), ends the conversation
+
+---
+
+#### [NEW] backend/unmask/analyzer.py
+
+Analyzes the conversation transcript and scores:
+- **Response latency**: average time between messages (simulated, since both are local)
+- **Coherence score**: does the sender stay on-topic or contradict itself? (simple heuristic or LLM-based)
+- **Personalization score**: does the sender use the target's name/details, or is it generic?
+- Returns: `{"latency_avg_ms": ..., "coherence": 0.3, "personalization": 0.1, "verdict": "BOT_LIKELY"}`
+
+---
+
+#### [NEW] backend/unmask/router.py
+
+- `POST /unmask` — accepts `{"email_id": ..., "sender_persona": {...}}`
+- Runs the full simulation: fake_sender ↔ honeypot_agent (3 rounds)
+- Runs the analyzer on the transcript
+- Saves transcript + analysis to the database
+- Returns the full analysis
+
+---
+
+### Step 5: Explain Module (Dashboard)
+
+#### [NEW] dashboard/app.py
+
+A single-page Streamlit app with these sections:
+
+1. **Input Panel**: Text area to paste an email (subject, body, sender) + "Analyze" button
+2. **Detection Score**: Large gauge/number showing the suspicion score with color coding
+3. **Investigation Results**: Expandable section showing WHOIS data, DNS data, LLM verdict
+4. **Honeypot Transcript**: Chat-style display of the simulated conversation
+5. **Final Verdict**: Combined assessment card pulling together all three modules
+
+**Flow:** User pastes email → clicks "Analyze" → dashboard calls `/detect`, then `/investigate`, then `/unmask` sequentially → displays all results.
+
+---
+
+## Dependency Summary
+
+### backend/requirements.txt
+```
+fastapi==0.115.*
+uvicorn[standard]==0.30.*
+sqlalchemy==2.0.*
+psycopg2-binary==2.9.*
+pydantic-settings==2.4.*
+python-multipart==0.0.*
+
+# Detection
+transformers==4.44.*
+torch==2.4.*
+datasets==2.21.*
+scikit-learn==1.5.*
+evaluate==0.4.*
+
+# Investigation
+python-whois==0.9.*
+dnspython==2.7.*
+google-genai==1.0.*   # or openai, configurable
+
+# Testing
+pytest==8.3.*
+httpx==0.27.*         # for TestClient + dashboard HTTP calls
+```
+
+### dashboard (inline in Dockerfile)
+```
+streamlit==1.38.*
+httpx==0.27.*
+pandas==2.2.*
+```
+
+---
+
+## Build Order & Verification Plan
+
+I will build each step sequentially, confirming it works before moving on:
+
+| Step | Module | Verification |
+|------|--------|-------------|
+| 1 | Scaffolding | `docker-compose up` starts all services, `/health` returns 200, DB tables created |
+| 2 | Detect | Unit test: classify a known phishing email → score > 0.7; classify a legit email → score < 0.3 |
+| 3 | Investigate | Unit test: investigate `example.com` → returns valid WHOIS/DNS data + LLM verdict |
+| 4 | Unmask | Unit test: run simulation → returns 3-round transcript + analysis scores |
+| 5 | Dashboard | Browser test: paste email → see all four panels populated with real data |
+
+### Automated Tests
+```bash
+# Run from backend/
+pytest tests/ -v
+```
+
+### End-to-End Verification
+```bash
+# Start everything
+docker-compose up --build
+
+# In another terminal, test the full pipeline
+curl -X POST http://localhost:8000/detect \
+  -H "Content-Type: application/json" \
+  -d '{"subject": "Urgent: Verify your account", "body": "Click here to verify...", "sender": "security@amaz0n-support.com"}'
+
+# Then use the returned email_id to call /investigate and /unmask
+# Finally, open http://localhost:8501 for the dashboard
+```
+
+---
+
+## What We Are NOT Building Yet (Post-MVP Features)
+
+These will be outlined in the README after the MVP is complete:
+
+1. **Website/URL Classifier** — A second detection head for phishing websites
+2. **Multi-Agent Debate System** — Prosecution/Defense/Judge agents that argue over the evidence
+3. **Red-Team Adversarial Evaluator** — An agent that tries to craft emails that bypass detection
+4. **LLM-driven Fake Sender** — Replace the scripted simulator with a dynamic LLM persona
+5. **Real-time Email Ingestion** — IMAP/SMTP listener instead of manual paste
+6. **Confidence Calibration** — Bayesian or ensemble methods for better score reliability
