@@ -1,0 +1,13 @@
+From: "Apple Support Desk" <support@appleid-verify.xyz>
+Reply-To: apple.case.escalation@gmail.com
+To: user@acme-corp.com
+Subject: Security Lock: Unauthorized login attempt from St. Petersburg, RU
+Authentication-Results: mx.acme-corp.com; spf=fail; dkim=fail; dmarc=fail
+Date: Fri, 6 Nov 2026 14:15:00 -0800
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Your Apple ID was used to sign in to iCloud from an unrecognized device.</p>
+<p>Location: St. Petersburg, Russia<br>IP Address: 185.220.101.42</p>
+<p>If this was not you, unlock and secure your account immediately: <a href="http://appleid-verify.xyz/auth/restore">https://appleid.apple.com/account/secure</a></p>
+</body></html>

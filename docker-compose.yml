@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  active-verification-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: active-verification-service
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - HOST=0.0.0.0
+      - PORT=8000
+      - ACTIVE_VERIFICATION_SANDBOX_STRICT=true
+      - TARGET_FPR=0.01
+      - QUARANTINE_THRESHOLD=0.88
+      - WARN_THRESHOLD=0.55
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+

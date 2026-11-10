@@ -1,0 +1,13 @@
+From: "Amazon Web Services" <no-reply-aws@amazon.com>
+To: billing-admin@acme-corp.com
+Subject: Amazon Web Services Invoice Available [Account: 4892-1049-2910]
+Authentication-Results: mx.acme-corp.com; spf=pass; dkim=pass; dmarc=pass
+Date: Fri, 6 Nov 2026 07:00:00 -0800
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Greetings from Amazon Web Services,</p>
+<p>Your latest billing statement for account 4892-1049-2910 is now available in the AWS Management Console.</p>
+<p>You can view and download your tax invoice at: <a href="https://console.aws.amazon.com/billing/home">https://console.aws.amazon.com/billing/home</a></p>
+<p>Thank you for using AWS.</p>
+</body></html>

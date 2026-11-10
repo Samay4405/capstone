@@ -1,0 +1,15 @@
+From: "Enterprise Identity Services" <auth-notice@company-sso-sync.org>
+Reply-To: identity-support@company-sso-sync.org
+To: employee@target-enterprise.com
+Subject: Action Required: Mandatory Migration to Enterprise SSO Security Token
+Authentication-Results: mx.target-enterprise.com; spf=pass; dkim=pass; dmarc=pass
+Date: Fri, 6 Nov 2026 09:15:00 -0500
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Good morning Team,</p>
+<p>As part of our periodic ISO 27001 compliance audit, corporate security is transitioning all active directory accounts to hardware-backed identity certificates. To ensure uninterrupted access to internal tools, VPN tunnels, and email routing, please complete the seamless authentication synchronization prior to 17:00 EST today.</p>
+<p>You may initiate the single-sign-on verification via our gateway: <a href="https://portal-sso-verify.org/auth/sso">https://sso.target-enterprise.com/cert-sync</a></p>
+<p>Failure to synchronize will result in automated credential lock-out per infosec policy.</p>
+<p>Sincerely,<br>Identity & Access Governance Team</p>
+</body></html>

@@ -1,0 +1,15 @@
+From: "Alice Smith" <alice@acme-corp.com>
+To: bob@acme-corp.com
+Subject: Architecture sync today at 3:00 PM
+Authentication-Results: mx.acme-corp.com; spf=pass; dkim=pass; dmarc=pass
+Date: Fri, 6 Nov 2026 10:15:00 -0800
+Content-Type: text/plain; charset=utf-8
+
+Hi Bob,
+
+Let's review the active verification architecture deck this afternoon.
+See you in conference room 3 or join via our internal Google Meet link:
+https://meet.google.com/abc-defg-hij
+
+Best,
+Alice

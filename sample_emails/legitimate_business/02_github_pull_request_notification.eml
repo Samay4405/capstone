@@ -1,0 +1,12 @@
+From: "GitHub Notifications" <notifications@github.com>
+To: dev-team@acme-corp.com
+Subject: [acme/core-engine] Pull request #142 opened: Add calibrator for ensemble
+Authentication-Results: mx.acme-corp.com; spf=pass; dkim=pass; dmarc=pass
+Date: Fri, 6 Nov 2026 11:00:00 -0800
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>@reviewer, @contributor opened pull request #142: "Add calibrator for ensemble".</p>
+<p>View the diff and run CI checks: <a href="https://github.com/acme/core-engine/pull/142">https://github.com/acme/core-engine/pull/142</a></p>
+<p>You are receiving this because you are subscribed to this repository.</p>
+</body></html>

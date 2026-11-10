@@ -1,0 +1,14 @@
+From: "PayPal Account Security" <security@paypa1-update.com>
+Reply-To: phisher@harvest-creds.top
+To: employee@acme-corp.com
+Subject: URGENT: Your PayPal account has been suspended within 24 hours!!
+Authentication-Results: mx.acme-corp.com; spf=fail; dkim=fail; dmarc=fail
+Date: Fri, 6 Nov 2026 10:00:00 -0800
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Dear customer, irregular activity was flagged on your account.</p>
+<p>Your access will be permanently terminated within 24 hours. Log in immediately to verify identity.</p>
+<p><a href="http://192.168.1.100/login">https://paypal.com/security-check</a></p>
+<p>Thank you,<br>PayPal Security Department</p>
+</body></html>
