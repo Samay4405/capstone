@@ -127,33 +127,122 @@ Full details in [`BENCHMARK_REPORT.md`](BENCHMARK_REPORT.md).
 
 ---
 
-## ⚡ Quickstart
+## ⚡ Setup & Run Instructions for New Users (Fresh PC)
 
-### 1. Installation
+### 📋 Prerequisites
+- **Python**: Version `3.11`, `3.12`, or `3.13` ([Download Python](https://www.python.org/downloads/))
+  * *Important on Windows*: Check the box **"Add Python to PATH"** during installation.
+- **Git**: ([Download Git](https://git-scm.com/downloads))
+
+---
+
+### 💻 Step-by-Step Setup
+
+#### 1. Clone the `samay` branch
+Open your terminal (PowerShell or Bash) and run:
 ```bash
-git clone <repo-url> active-verification
+git clone -b samay https://github.com/Samay4405/capstone.git active-verification
 cd active-verification
+```
+
+#### 2. Create and Activate Virtual Environment
+
+**On Windows (PowerShell):**
+```powershell
 python -m venv venv
-source venv/bin/activate  # Or .\venv\Scripts\Activate.ps1 on Windows
+.\venv\Scripts\Activate.ps1
+
+# If PowerShell script execution is restricted on your machine, run this once:
+# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+**On Linux / macOS:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+#### 3. Install Dependencies
+```bash
+python -m pip install --upgrade pip
 pip install -e ".[dev]"
+```
+
+#### 4. Configure Environment
+Copy the pre-configured environment template:
+```bash
+# On Windows PowerShell:
+Copy-Item .env.example .env
+
+# On Linux / macOS:
 cp .env.example .env
 ```
 
-### 2. Run Tests
+---
+
+## 🚀 Running the System
+
+### A. Start the Interactive Web Dashboard & REST API
 ```bash
+# On Windows PowerShell:
+$env:PYTHONPATH="src;."
+python -m uvicorn active_verification.api.server:app --reload --port 8000
+
+# On Linux / macOS:
+export PYTHONPATH="src:."
+python3 -m uvicorn active_verification.api.server:app --reload --port 8000
+```
+- Open your browser to **[http://localhost:8000/](http://localhost:8000/)**
+- Click any of the pre-loaded threat pills (e.g. *PayPal Spoof*, *CEO Wire Fraud*, *IT SSO Cert Migration*) or drag and drop `.eml` files from the `sample_emails/` folder directly onto the dropzone.
+- Interactive API Docs are available at **[http://localhost:8000/docs](http://localhost:8000/docs)**.
+
+---
+
+### B. Run Batch Verification on the 15 Pre-Built Sample Emails
+```bash
+# On Windows PowerShell:
+$env:PYTHONPATH="src;."
+python scripts/test_samples.py
+
+# On Linux / macOS:
+export PYTHONPATH="src:."
+python3 scripts/test_samples.py
+```
+
+---
+
+### C. Run the Reproducible Benchmark Harness
+```bash
+# On Windows PowerShell:
+$env:PYTHONPATH="src;."
+python -m eval --samples 120
+
+# On Linux / macOS:
+export PYTHONPATH="src:."
+python3 -m eval --samples 120
+```
+
+---
+
+### D. Run Automated Test Suite
+```bash
+# On Windows PowerShell:
+$env:PYTHONPATH="src;."
+pytest tests/ -v
+
+# On Linux / macOS:
+export PYTHONPATH="src:."
 pytest tests/ -v
 ```
 
-### 3. Run Benchmark Harness
-```bash
-python -m eval --samples 120
-```
+---
 
-### 4. Start the Interactive Web Dashboard
+### 🐳 Optional: 1-Command Docker Deployment
+If you have Docker and Docker Compose installed:
 ```bash
-uvicorn active_verification.api.server:app --reload --port 8000
+docker-compose up --build
 ```
-Open **`http://localhost:8000/`** to interact with the visual dashboard, drag-and-drop sample emails, view calibrated risk scores, and inspect active verification traces.
+The web dashboard will be available at `http://localhost:8000/` automatically with zero local Python setup.
 
 ---
 
